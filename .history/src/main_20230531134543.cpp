@@ -1,0 +1,69 @@
+#include <ESP8266WiFi.h>             // esp8266库
+#include <MySQL_Connection.h>    // Arduino连接Mysql的库
+#include <MySQL_Cursor.h>
+#include <DHT.h>      // DHT库 
+#define DHTPIN 4     // 定义DHT的引脚
+#define DHTTYPE DHT11 // 定义dht类型
+
+DHT dht(DHTPIN, DHTTYPE); // 初始化DHT11传感器
+
+IPAddress server_addr(192,168,###,###);   // 安装Mysql的电脑的IP地址
+char user[] = "root";              // Mysql的用户名
+char password[] = "root";        // 登陆Mysql的密码
+
+// Mysql中添加一条数据的命令
+// arduino_test，test1：刚才创建的数据和表
+char INSERT_SQL[] = "INSERT INTO  arduino_test.test1(tem,hem) VALUES ('%s','%s')";
+
+char ssid[] = "ATX";         // WiFi名
+char pass[] = "";     // WiFi密码
+
+WiFiClient client;                 // 声明一个Mysql客户端，在lianjieMysql中使用
+MySQL_Connection conn(&client);
+MySQL_Cursor* cursor;		// 
+
+// 读取传感器的数据并写入到数据库
+void readAndRecordData(){
+				  Serial.print(dht.readTemperature());      	// 在串口中打印读取到的温度
+				  Serial.print(",\t"); 
+                  Serial.println(dht.readHumidity());             // 在串口中打印读取到的湿度
+                  char buff[128];                                         // 定义存储传感器数据的数组
+                  char tem[5];			
+                  char hem[4];				
+                  // 将传感器采集的浮点数转换为3位整数一位小数的字串放入temp
+                  dtostrf(dht.readHumidity(),3,1,tem);
+                  dtostrf(dht.readTemperature(),2,1,hem);
+                  sprintf(buff,INSERT_SQL,tem,hem);                 // 讲tem和hem中数据放入SQL中
+                  MySQL_Cursor *cur_mem = new MySQL_Cursor(&conn);         // 创建一个Mysql实例
+                  cur_mem->execute(buff);         // 将采集到的温湿度值插入数据库中
+                  Serial.println("读取传感器数据，并写入数据库");
+                  delete cur_mem;        // 删除mysql实例为下次采集作准备
+}
+
+void setup()
+{
+  Serial.begin(9600);
+  while (!Serial);      //  等待端口的释放
+  Serial.printf("\nConnecting to %s", ssid);
+  WiFi.begin(ssid, pass);         // 连接WiFi
+  while (WiFi.status() != WL_CONNECTED) {       // 如果WiFi没有连接，一直循环打印点
+    delay(500);
+    Serial.print(".");
+  }
+
+  Serial.println("\nConnected to network");
+  Serial.print("My IP address is: ");
+  Serial.println(WiFi.localIP());     // 打印开发板的IP地址
+
+  Serial.print("Connecting to SQL...  ");
+  if (conn.connect(server_addr, 3306, user, password))         // 连接数据库
+    Serial.println("OK.");   
+  else
+    Serial.println("FAILED.");
+  cursor = new MySQL_Cursor(&conn);    // 创建一个数据库游标实例
+}
+
+void loop()
+{ 
+  delay(5000);
+}
